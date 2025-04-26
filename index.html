@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>lyrics</title>
+  <script src="/lib/reconnecting-websocket.js"></script>
+  <script src="/lib/consts.js"></script>
+  <link rel="stylesheet" href="https://fonts.font.im/css2?family=Comfortaa:wght@300;700&display=swap"/>
+  <style>
+    html {
+      height: 100%;
+    }
+    body {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      overflow: clip;
+    }
+    body.black {
+      background-color: black;
+    }
+    body.top {
+      align-items: start;
+    }
+    body.right {
+      align-items: center;
+      writing-mode: vertical-rl;
+    }
+    #lyrics {
+      width: 100%;
+      margin: 6px;
+      text-align: center;
+      color: #ffffff;
+      font: 42px / 115% comfortaa, 'Source Han Sans SC', 'Han-Nom Gothic';
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      text-shadow: 0 2px 0 #00000066;
+      animation: 50s cubic-bezier(0.08049081, 1.0636216, 0.116345264, 0.9956869) forwards lyrics-out;
+      transform-origin: bottom center;
+    }
+    .top #lyrics {
+      transform-origin: top center;
+    }
+    .right #lyrics {
+      transform-origin: center right;
+      text-align: start;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .right #lyrics>div {
+      inline-size: fit-content;
+    }
+    @keyframes lyrics-out {
+      to {
+        opacity: 0.2;
+        transform: scale(0.5);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="lyrics"></div>
+  <script>
+    const lyrics = document.getElementById("lyrics")
+    const mode = "tosu"
+    const rws = new ReconnectingWebSocket(`${overlay.config.getWs()}/${mode === "sc" ? "tokens" : "websocket/v2"}`)
+    const rws2 = new ReconnectingWebSocket(`ws://127.0.0.1:20577`)
+    if (mode === "sc")
+      rws.onopen = () => {
+        rws.send(
+          JSON.stringify([
+            "mp3Name",
+            "osuFileLocation",
+            "time",
+            "titleUnicode",
+            "titleRoman",
+            "artistUnicode",
+            "artistRoman",
+          ])
+        )
+      }
+    let prevMp3
+    let prevTime
+    let vertical = false
+    rws.onmessage = e => {
+      let data = JSON.parse(e.data)
+      let mp3, time, titleUnicode, titleRoman, artistUnicode, artistRoman
+      if (mode === "sc") {
+        ({
+          mp3Name,
+          osuFileLocation,
+          time,
+          titleUnicode,
+          titleRoman,
+          artistUnicode,
+          artistRoman,
+        } = data)
+        mp3 =
+          mp3Name &&
+          (mp3Name.match(
+            /([0-9a-f])([\\/])(\1[0-9a-f])\2(\3[0-9a-f]{62})$/
+          )?.[4] ||
+            (osuFileLocation &&
+              osuFileLocation.replace(/[^\\/]*$/, "") + mp3Name))
+      } else {
+        mp3 = data.client === "lazer"
+          ? data.files.audio.split(/[\\/]/).pop()
+          : data.folders.songs + (data.folders.songs.includes("\\") ? "\\" : "/") + data.directPath.beatmapAudio
+        time = data.beatmap.time.live / 1000
+        titleUnicode = data.beatmap.titleUnicode
+        titleRoman = data.beatmap.titleRoman
+        artistUnicode = data.beatmap.artistUnicode
+        artistRoman = data.beatmap.artistRoman
+      }
+      if (mp3 !== prevMp3) lyrics.textContent = ""
+      if (mp3 && (mp3 !== prevMp3 || time !== prevTime))
+        rws2.send(
+          JSON.stringify({
+            mp3,
+            time,
+            title: titleUnicode || titleRoman,
+            artist: artistUnicode || artistRoman,
+          })
+        )
+      prevMp3 = mp3
+      prevTime = time
+    }
+    rws2.onmessage = e => {
+      const data = JSON.parse(e.data)
+      if (data.error) console.error(data.error)
+      if (data.lyrics) {
+        lyrics.remove()
+        let lines = data.lyrics
+        if (vertical) lines = patchVerticalLyrics(lines)
+        lyrics.textContent = ""
+        lines.forEach(line => {
+          const div = document.createElement("div")
+          div.textContent = line
+          lyrics.appendChild(div)
+        })
+        document.body.insertBefore(lyrics, document.body.firstChild)
+      }
+    }
+    document.addEventListener("click", () => {
+      document.body.classList.toggle("black")
+    })
+
+    function patchVerticalLyrics(lines) {
+      return lines.map(l => {
+        if (!l.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u)) return l
+        return l
+          .replaceAll("“", "「")
+          .replaceAll("”", "」")
+          .replaceAll("‘", "『")
+          .replaceAll("‘", "』")
+      })
+    }
+
+    function detectLocationHash() {
+      const h = window.location.hash.slice(1)
+      h === "top" ? document.body.classList.add("top") : document.body.classList.remove("top")
+      h === "right" ? document.body.classList.add("right") : document.body.classList.remove("right")
+      vertical = h === "right"
+    }
+    window.addEventListener("hashchange", detectLocationHash)
+    detectLocationHash()
+  </script>
+</body>
+</html>
