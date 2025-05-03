@@ -5,7 +5,6 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>lyrics</title>
   <script src="/lib/reconnecting-websocket.js"></script>
-  <script src="/lib/consts.js"></script>
   <link rel="stylesheet" href="https://fonts.font.im/css2?family=Comfortaa:wght@300;700&display=swap"/>
   <style>
     html {
@@ -68,7 +67,7 @@
   <script>
     const lyrics = document.getElementById("lyrics")
     const mode = "tosu"
-    const rws = new ReconnectingWebSocket(`${overlay.config.getWs()}/${mode === "sc" ? "tokens" : "websocket/v2"}`)
+    const rws = new ReconnectingWebSocket(`ws://${location.host}/${mode === "sc" ? "tokens" : "websocket/v2"}`)
     const rws2 = new ReconnectingWebSocket(`ws://127.0.0.1:20577`)
     if (mode === "sc")
       rws.onopen = () => {
