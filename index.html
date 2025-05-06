@@ -139,7 +139,7 @@
         lyrics.textContent = ""
         lines.forEach(line => {
           const div = document.createElement("div")
-          div.textContent = line
+          div.innerHTML = rubyify(line)
           lyrics.appendChild(div)
         })
         document.body.insertBefore(lyrics, document.body.firstChild)
@@ -158,6 +158,13 @@
           .replaceAll("‘", "『")
           .replaceAll("‘", "』")
       })
+    }
+
+    function rubyify(str) {
+      return str.replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\[([^\n\]]+)\]\{([^\n\}]+)\}/g, "<ruby>$1<rt>$2</rt></ruby>")
     }
 
     function detectLocationHash() {
