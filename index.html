@@ -44,6 +44,7 @@
       transform-origin: top center;
     }
     .right #lyrics {
+      font-size: 36px;
       transform-origin: center right;
       text-align: start;
       display: flex;
@@ -59,6 +60,11 @@
         opacity: 0.2;
         transform: scale(0.5);
       }
+    }
+    .right .hori {
+      writing-mode: horizontal-tb;
+      vertical-align: 0.1em;
+      line-height: 1;
     }
   </style>
 </head>
@@ -158,6 +164,8 @@
           .replaceAll("”", "」")
           .replaceAll("‘", "『")
           .replaceAll("‘", "』")
+          .replaceAll("…", "⋯")
+          .replace(/(?<![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　！-～])\d{1,2}(?![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　！-～])/ug, "<hori>$&</hori>")
       })
     }
 
@@ -166,6 +174,7 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/\[([^\n\]]+)\]\{([^\n\}]+)\}/g, "<ruby>$1<rt>$2</rt></ruby>")
+        .replace(/&lt;hori&gt;(.+?)&lt;\/hori&gt;/g, '<span class="hori">$1</span>')
     }
 
     function detectLocationHash() {
