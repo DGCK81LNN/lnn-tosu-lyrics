@@ -165,7 +165,7 @@
           .replaceAll("‘", "『")
           .replaceAll("‘", "』")
           .replaceAll("…", "⋯")
-          .replace(/(?<![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　！-～])\d{1,2}(?![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　！-～])/ug, "<hori>$&</hori>")
+          .replace(/(?<![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana} 　！-～])\d{1,2}(?![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana} 　！-～])/ug, "<hori>$&</hori>")
       })
     }
 
@@ -173,7 +173,7 @@
       return str.replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\[([^\n\]]+)\]\{([^\n\}]+)\}/g, "<ruby>$1<rt>$2</rt></ruby>")
+        .replace(/\[([^\n\]]+)\]\{([^\n\}]+(?:\}\{[^\n\}]+)*)\}/g, (_, base, ruby) => ruby.split("}{").reduce((base, ruby) => `<ruby>${base}<rt>${ruby}</rt></ruby>`, base))
         .replace(/&lt;hori&gt;(.+?)&lt;\/hori&gt;/g, '<span class="hori">$1</span>')
     }
 
