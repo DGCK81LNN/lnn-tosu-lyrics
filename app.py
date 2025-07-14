@@ -31,6 +31,7 @@ def get_mp3_sha256(mp3):
 
 mtime_dict = {}
 full_lyrics_cache = {}
+credits_cache = {}
 def get_full_lyrics(mp3_sha256, data={}):
     file_present = os.path.isfile(f"lyrics/{mp3_sha256}.lrc") and os.path.getsize(f"lyrics/{mp3_sha256}.lrc") > 0
     if file_present:
@@ -49,6 +50,8 @@ def get_full_lyrics(mp3_sha256, data={}):
     has_artist = False
     has_title = False
     crlf = False
+    credits = []
+    betamapsets = set()
     with open(f"lyrics/{mp3_sha256}.lrc", "r", encoding="utf-8") as f:
         for line in f:
             if match := re.match(r"^\[(\d\d):(\d\d)(?:\.(\d{1,3}))?\]", line):
@@ -59,6 +62,14 @@ def get_full_lyrics(mp3_sha256, data={}):
                 offset = int(match.group(1))
             elif match := re.match(r"^\[time_scale:([1-9]\d*(?:\.\d+)?)\]", line):
                 time_scale = float(match.group(1))
+            elif match := re.match(r"^\[mapsetid:([1-9]\d*)\]", line):
+                betamapsets.add(int(match.group(1)))
+            elif match := re.match(r"^\[by:(.*)\]", line):
+                credits.append(f"歌词制作：{match.group(1)}")
+            elif match := re.match(r"^\[tr:(.*)\]", line):
+                credits.append(f"翻译：{match.group(1)}")
+            elif match := re.match(r"^\[credit:(.*)\]", line):
+                credits.append(match.group(1))
             elif re.match(r"^\[ar:.*\]", line):
                 has_artist = True
             elif re.match(r"^\[ti:.*\]", line):
@@ -66,28 +77,36 @@ def get_full_lyrics(mp3_sha256, data={}):
             if line.endswith("\r\n"):
                 crlf = True
 
-    if not has_artist and not has_title and "artist" in data and "title" in data:
-        artist = data["artist"]
-        title = data["title"]
+    prepend_artist_and_title = not has_artist and not has_title and "artist" in data and "title" in data
+    prepend_beatmapset = "beatmapset" in data and data["beatmapset"] not in betamapsets
+    if prepend_artist_and_title or prepend_beatmapset:
         eol = "\r\n" if crlf else "\n"
-        print(f"prepending artist and title to {mp3_sha256}")
         try:
             with open(f"lyrics/{mp3_sha256}.lrc", "r+", encoding="utf-8") as f:
                 b = f.read()
                 f.seek(0)
-                f.write(f"[ar:{artist}]{eol}[ti:{title}]{eol}")
+                if prepend_beatmapset:
+                    print(f"prepending mapsetid {data['beatmapset']} to {mp3_sha256}")
+                    f.write(f"[mapsetid:{data['beatmapset']}]{eol}")
+                if prepend_artist_and_title:
+                    print(f"prepending artist and title to {mp3_sha256}")
+                    artist = data["artist"]
+                    title = data["title"]
+                    f.write(f"[ar:{artist}]{eol}[ti:{title}]{eol}")
                 f.write(b)
             mtime_dict[mp3_sha256] = os.path.getmtime(f"lyrics/{mp3_sha256}.lrc")
         except:
             traceback.print_exc()
 
     full_lyrics_cache[mp3_sha256] = l
+    credits_cache[mp3_sha256] = credits
     return l
 
 async def handle_message(websocket):
     prev_mp3_sha256 = None
     prev_full_lyrics = None
     prev_latest = None
+    sent_credits = False
     async for message in websocket:
         try:
             data = json.loads(message)
@@ -95,14 +114,21 @@ async def handle_message(websocket):
             time = data.get("time", 0)
             mp3_sha256 = get_mp3_sha256(data["mp3"])
             full_lyrics = get_full_lyrics(mp3_sha256, data)
+            just_switched_song = prev_mp3_sha256 != mp3_sha256
             if full_lyrics is None:
-                if prev_mp3_sha256 != mp3_sha256:
+                if just_switched_song:
                     print("No lyrics found for mp3", mp3_sha256)
                 prev_mp3_sha256 = mp3_sha256
                 continue
+            if just_switched_song:
+                sent_credits = False
+            if full_lyrics and not sent_credits and time * 1000 >= full_lyrics[0][0] - 10:
+                credits = credits_cache.get(mp3_sha256)
+                if credits: await websocket.send(json_encoder.encode({"credits": credits}))
+                sent_credits = True
             latest = max(t for t, *_ in [(0,)] + full_lyrics if t < time * 1000)
             if (
-                prev_mp3_sha256 == mp3_sha256
+                not just_switched_song
                 and prev_full_lyrics is full_lyrics
                 and prev_latest == latest
             ): continue

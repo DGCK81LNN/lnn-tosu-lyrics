@@ -13,38 +13,46 @@
     body {
       height: 100%;
       margin: 0;
+      padding: 6px;
       display: flex;
-      align-items: end;
-      justify-content: center;
+      align-items: center;
+      justify-content: end;
       overflow: clip;
+      flex-direction: column;
+      box-sizing: border-box;
     }
     body.black {
       background-color: black;
     }
     body.top {
-      align-items: start;
+      flex-direction: column-reverse;
+      justify-content: start;
     }
     body.right {
-      align-items: center;
       writing-mode: vertical-rl;
+      flex-direction: column-reverse;
     }
-    #lyrics {
+    #lyrics, #credits {
       width: 100%;
-      margin: 6px;
       text-align: center;
-      color: #ffffff;
       font: 42px / 115% comfortaa, 'Source Han Sans SC', 'Plangothic P1', 'Plangothic P2';
       white-space: pre-wrap;
       overflow-wrap: break-word;
       text-shadow: 0 2px 0 #00000066;
+      margin-inline-start: auto;
+      margin-inline-end: auto;
+      inline-size: 100%;
+    }
+    #lyrics {
+      color: #ffffff;
       animation: 50s cubic-bezier(0.08049081, 1.0636216, 0.116345264, 0.9956869) forwards lyrics-out;
-      transform-origin: bottom center;
     }
-    .top #lyrics {
+    /* .top #lyrics {
       transform-origin: top center;
-    }
+    } */
     .right #lyrics {
       font-size: 36px;
+      --font-size: 36px;
       transform-origin: center right;
       text-align: start;
       display: flex;
@@ -58,7 +66,28 @@
     @keyframes lyrics-out {
       to {
         opacity: 0.2;
-        transform: scale(0.5);
+        font-size: calc(var(--font-size) * 0.5);
+        line-height: 115%;
+        inline-size: 50%;
+      }
+    }
+    #credits {
+      font-size: 24px;
+      color: #f7e65e;
+      animation: 10s forwards credits-out;
+    }
+    @keyframes credits-out {
+      80% {
+        opacity: 0.75;
+        font-size: 18px;
+        line-height: 115%;
+        inline-size: 75%;
+      }
+      100% {
+        opacity: 0;
+        font-size: 0px;
+        line-height: 0%;
+        inline-size: 0%;
       }
     }
     .right .hori {
@@ -70,10 +99,12 @@
 </head>
 
 <body>
+  <div id="credits"></div>
   <div id="lyrics"></div>
   <script>
     const lyrics = document.getElementById("lyrics")
-    const mode = "tosu"
+    const credits = document.getElementById("credits")
+    const mode = "sc"
     const rws = new ReconnectingWebSocket(`ws://${location.host}/${mode === "sc" ? "tokens" : "websocket/v2"}`)
     const rws2 = new ReconnectingWebSocket(`ws://127.0.0.1:20577`)
     if (mode === "sc")
@@ -105,6 +136,7 @@
           titleRoman,
           artistUnicode,
           artistRoman,
+          mapsetid,
         } = data)
         mp3 =
           mp3Name &&
@@ -122,8 +154,13 @@
         titleRoman = data.beatmap.titleRoman
         artistUnicode = data.beatmap.artistUnicode
         artistRoman = data.beatmap.artistRoman
+        mapsetid = data.beatmap.set
       }
-      if (mp3 !== prevMp3) lyrics.textContent = ""
+      if (mp3 === ".") mp3 = ""
+      if (mp3 !== prevMp3) {
+        lyrics.remove()
+        credits.remove()
+      }
       if (mp3 && (mp3 !== prevMp3 || time !== prevTime))
         rws2.send(
           JSON.stringify({
@@ -131,6 +168,7 @@
             time,
             title: titleUnicode || titleRoman,
             artist: artistUnicode || artistRoman,
+            beatmapset: mapsetid >= 1 ? mapsetid : undefined,
           })
         )
       prevMp3 = mp3
@@ -150,6 +188,13 @@
           lyrics.appendChild(div)
         })
         document.body.insertBefore(lyrics, document.body.firstChild)
+      }
+      if (data.credits) {
+        credits.remove()
+        let lines = data.credits
+        if (vertical) lines = patchVerticalLyrics(lines)
+        credits.innerHTML = rubyify(lines.join("\n"))
+        document.body.insertBefore(credits, document.body.firstChild)
       }
     }
     document.addEventListener("click", () => {
