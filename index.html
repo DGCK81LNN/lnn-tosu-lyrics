@@ -39,21 +39,20 @@
       white-space: pre-wrap;
       overflow-wrap: break-word;
       text-shadow: 0 2px 0 #00000066;
-      margin-inline-start: auto;
-      margin-inline-end: auto;
-      inline-size: 100%;
+      transform-origin: bottom center;
+    }
+    .top #lyrics, .top #credits {
+      transform-origin: top center;
+    }
+    .right #lyrics, .right #credits {
+      transform-origin: center right;
     }
     #lyrics {
       color: #ffffff;
       animation: 50s cubic-bezier(0.08049081, 1.0636216, 0.116345264, 0.9956869) forwards lyrics-out;
     }
-    /* .top #lyrics {
-      transform-origin: top center;
-    } */
     .right #lyrics {
       font-size: 36px;
-      --font-size: 36px;
-      transform-origin: center right;
       text-align: start;
       display: flex;
       flex-direction: column;
@@ -66,9 +65,7 @@
     @keyframes lyrics-out {
       to {
         opacity: 0.2;
-        font-size: calc(var(--font-size) * 0.5);
-        line-height: 115%;
-        inline-size: 50%;
+        transform: scale(0.5);
       }
     }
     #credits {
@@ -76,18 +73,23 @@
       color: #f7e65e;
       animation: 10s forwards credits-out;
     }
+
     @keyframes credits-out {
-      80% {
+      0% {
+        opacity: 0;
+        transform: scale(0);
+      }
+      10% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      85% {
         opacity: 0.75;
-        font-size: 18px;
-        line-height: 115%;
-        inline-size: 75%;
+        transform: scale(0.75);
       }
       100% {
         opacity: 0;
-        font-size: 0px;
-        line-height: 0%;
-        inline-size: 0%;
+        transform: scale(0);
       }
     }
     .right .hori {
@@ -243,6 +245,17 @@
         .replace(/\[([^\n\]]+)\]\{([^\n\}]+(?:\}\{[^\n\}]+)*)\}/g, (_, base, ruby) => ruby.split("}{").reduce((base, ruby) => `<ruby>${base}<rt>${ruby}</rt></ruby>`, base))
         .replace(/&lt;hori&gt;(.+?)&lt;\/hori&gt;/g, '<span class="hori">$1</span>')
     }
+
+    function frame() {
+      requestAnimationFrame(frame)
+      const creditsBlockSize = vertical ? credits.offsetWidth : credits.offsetHeight
+      const creditsNegativeMarginRatio = 1 - getComputedStyle(credits).opacity
+      const margin = `-${creditsBlockSize * creditsNegativeMarginRatio}px`
+      const isBlockEnd = ["top", "right"].includes(position)
+      credits.style.marginBlockStart = isBlockEnd ? "" : margin
+      credits.style.marginBlockEnd = isBlockEnd ? margin : ""
+    }
+    frame()
 
     function detectLocationHash() {
       position = window.location.hash.slice(1)
