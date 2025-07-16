@@ -106,7 +106,7 @@ async def handle_message(websocket):
     prev_mp3_sha256 = None
     prev_full_lyrics = None
     prev_latest = None
-    sent_credits = False
+    shown_credits = False
     async for message in websocket:
         try:
             data = json.loads(message)
@@ -120,12 +120,13 @@ async def handle_message(websocket):
                     print("No lyrics found for mp3", mp3_sha256)
                 prev_mp3_sha256 = mp3_sha256
                 continue
-            if just_switched_song:
-                sent_credits = False
-            if full_lyrics and not sent_credits and time * 1000 >= full_lyrics[0][0] - 10:
+            ready_to_show_credits = full_lyrics and time * 1000 >= full_lyrics[0][0] - 3000
+            if just_switched_song or not ready_to_show_credits:
+                shown_credits = False
+            if ready_to_show_credits and not shown_credits:
                 credits = credits_cache.get(mp3_sha256)
                 if credits: await websocket.send(json_encoder.encode({"credits": credits}))
-                sent_credits = True
+                shown_credits = True
             latest = max(t for t, *_ in [(0,)] + full_lyrics if t < time * 1000)
             if (
                 not just_switched_song
