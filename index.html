@@ -102,12 +102,17 @@
   <div id="credits"></div>
   <div id="lyrics"></div>
   <script>
+    const config = {
+      mode: "tosu",
+      lyricServer: "127.0.0.1:20577",
+      showInSongSelect: false,
+    }
+
     const lyrics = document.getElementById("lyrics")
     const credits = document.getElementById("credits")
-    const mode = "sc"
-    const rws = new ReconnectingWebSocket(`ws://${location.host}/${mode === "sc" ? "tokens" : "websocket/v2"}`)
-    const rws2 = new ReconnectingWebSocket(`ws://127.0.0.1:20577`)
-    if (mode === "sc")
+    const rws = new ReconnectingWebSocket(`ws://${location.host}/${config.mode === "sc" ? "tokens" : "websocket/v2"}`)
+    const rws2 = new ReconnectingWebSocket(`ws://${config.lyricServer}`)
+    if (config.mode === "sc")
       rws.onopen = () => {
         rws.send(
           JSON.stringify([
@@ -123,11 +128,13 @@
       }
     let prevMp3
     let prevTime
+    let prevStatus
+    let position = "bottom"
     let vertical = false
     rws.onmessage = e => {
       let data = JSON.parse(e.data)
-      let mp3, time, titleUnicode, titleRoman, artistUnicode, artistRoman
-      if (mode === "sc") {
+      let mp3, time, titleUnicode, titleRoman, artistUnicode, artistRoman, mapsetid, status
+      if (config.mode === "sc") {
         ({
           mp3Name,
           osuFileLocation,
@@ -137,6 +144,7 @@
           artistUnicode,
           artistRoman,
           mapsetid,
+          rawStatus: status,
         } = data)
         mp3 =
           mp3Name &&
@@ -155,8 +163,22 @@
         artistUnicode = data.beatmap.artistUnicode
         artistRoman = data.beatmap.artistRoman
         mapsetid = data.beatmap.set
+        status = data.state.number
       }
+      if (status === 2 /* Playing */ && prevStatus === 5 /* SongSelect */ && time >= 1) status = 5 // SongSelect
+      if (status) // Tosu briefly reports 0 (MainMenu) when going from SongSelect to Playing so exclude that
+        prevStatus = status
       if (mp3 === ".") mp3 = ""
+      if (
+        !config.showInSongSelect &&
+        [
+          3,  // GameShutdownAnimation
+          4,  // SongSelectEdit
+          5,  // SongSelect
+          12, // MultiplayerRoom
+          13, // MultiplayerSongSelect
+        ].includes(status)
+      ) mp3 = ""
       if (mp3 !== prevMp3) {
         lyrics.remove()
         credits.remove()
@@ -223,10 +245,11 @@
     }
 
     function detectLocationHash() {
-      const h = window.location.hash.slice(1)
-      h === "top" ? document.body.classList.add("top") : document.body.classList.remove("top")
-      h === "right" ? document.body.classList.add("right") : document.body.classList.remove("right")
-      vertical = h === "right"
+      position = window.location.hash.slice(1)
+      if (!["top", "right"].includes(position)) position = "bottom"
+      position === "top" ? document.body.classList.add("top") : document.body.classList.remove("top")
+      position === "right" ? document.body.classList.add("right") : document.body.classList.remove("right")
+      vertical = position === "right"
     }
     window.addEventListener("hashchange", detectLocationHash)
     detectLocationHash()
