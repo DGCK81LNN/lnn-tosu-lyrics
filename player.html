@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <title>tosu-lyrics Music Player</title>
+    <script src="/lib/reconnecting-websocket.js"></script>
+    <script src="utils.js"></script>
+    <link rel="stylesheet" href="https://fonts.font.im/css2?family=Comfortaa:wght@300;700&display=swap"/>
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        color: #f8f8f8;
+        background: #1e1e1e;
+      }
+      .container {
+        margin: 2em;
+      }
+      #mp3-list {
+        margin-bottom: 2em;
+        padding: 0;
+        list-style: none;
+      }
+      .song {
+        cursor: pointer;
+        margin: 0.5em 0;
+      }
+      .song.selected {
+        font-weight: bold;
+        color: #0078d7;
+      }
+      .sticky {
+        position: sticky;
+        bottom: 0;
+        background: #222;
+        padding: 1em;
+        border-top: 1px solid #333;
+        font-family: comfortaa, 'Source Han Sans SC', 'Plangothic P1', 'Plangothic P2';
+        cursor: default;
+        line-height: 115%;
+      }
+      #lyrics, #now-playing {
+        white-space: pre-wrap;
+      }
+      #lyrics.vertical {
+        position: fixed;
+        right: 6px;
+        top: 5rem;
+        bottom: 5rem;
+        writing-mode: vertical-rl;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: 1.5em;
+        line-height: 115%;
+        text-shadow: 0 1px 0 #00000088, 0 -1px 0 #00000088, 1px 0 0 #00000088, -1px 0 0 #00000088;
+      }
+      #lyrics.vertical hr {
+        display: none;
+      }
+      #lyrics.vertical .hori {
+        writing-mode: horizontal-tb;
+        vertical-align: 0.1em;
+        line-height: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>tosu-lyrics Music Player</h1>
+      <ul id="mp3-list"><li>Loading songs...</li></ul>
+    </div>
+    <div class="sticky">
+      <div id="lyrics"></div>
+      <div id="now-playing"></div>
+      <audio id="audio" controls style="width: 100%"></audio>
+    </div>
+    <script>
+      const mp3ListEl = document.getElementById("mp3-list");
+      /** @type {HTMLAudioElement} */
+      const audio = document.getElementById("audio");
+      const nowPlaying = document.getElementById("now-playing");
+      let currentSha256 = null;
+      let vertical = false;
+      let currentTime = NaN;
+
+      audio.volume = localStorage.getItem("lnn-tosu-lyrics-volume") ?? 0.5
+
+      async function fetchMp3s() {
+        const res = await fetch("/mp3s");
+        return await res.json();
+      }
+
+      function renderMp3List(mp3s) {
+        mp3ListEl.innerHTML = "";
+        mp3s.forEach((mp3) => {
+          const li = document.createElement("li");
+          li.className = "song";
+          li.textContent = `${mp3.artist} - ${mp3.title}`;
+          li.onclick = () => playMp3(mp3.sha256, li, mp3);
+          li.onkeydown = e => {
+            if (e.code === "Enter" || e.code === "Space") {
+              if (currentSha256 === mp3.sha256) audio.paused ? audio.play() : audio.pause();
+              else playMp3(mp3.sha256, li, mp3);
+              e.stopPropagation();
+              if (e.code === "Space") e.preventDefault();
+            }
+          };
+          li.tabIndex = 0;
+          mp3ListEl.appendChild(li);
+        });
+      }
+
+      function playMp3(sha256, li, mp3) {
+        // Highlight selected
+        document.querySelector(".song.selected")?.classList.remove("selected");
+        li.classList.add("selected");
+        currentSha256 = sha256;
+        audio.src = `/mp3s/${sha256}`;
+        audio.play();
+        nowPlaying.textContent = `${mp3.artist} - ${mp3.title}\n${mp3.credits.join("\n")}`;
+        lyrics.textContent = "";
+      }
+
+      // Initial load
+      fetchMp3s()
+        .then(renderMp3List)
+        .catch((err) => {
+          mp3ListEl.textContent = "Failed to load songs";
+          console.error(err);
+        });
+
+      function patchVerticalLyrics(lines) {
+        return lines.map(l => {
+          if (!l.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u)) return l
+          return l
+            .replaceAll("“", "「")
+            .replaceAll("”", "」")
+            .replaceAll("‘", "『")
+            .replaceAll("‘", "』")
+            .replaceAll("…", "⋯")
+            .replace(/(?<![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana} 　！-～])\d{1,2}(?![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana} 　！-～])/ug, "<hori>$&</hori>")
+        })
+      }
+      function rubyify(str) {
+        return str.replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\[([^\n\]]+)\]\{([^\n\}]+(?:\}\{[^\n\}]+)*)\}/g, (_, base, ruby) => ruby.split("}{").reduce((base, ruby) => `<ruby>${base}<rt>${ruby}</rt></ruby>`, base))
+          .replace(/&lt;hori&gt;(.+?)&lt;\/hori&gt;/g, '<span class="hori">$1</span>')
+      }
+
+      const ws = new ReconnectingWebSocket(`ws://${location.host}/ws`);
+      setInterval(() => {
+        const newCurrentTime = audio.currentTime;
+        if (currentSha256 && currentTime !== newCurrentTime) {
+          ws.send(
+            JSON.stringify({
+              mp3: currentSha256,
+              time: audio.currentTime,
+            })
+          );
+          currentTime = newCurrentTime;
+        }
+      }, 100);
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.lyrics) {
+          let lyrics = data.lyrics
+          if (vertical) lyrics = patchVerticalLyrics(lyrics)
+          const l = lyrics.map(l => `<div>${rubyify(l)}</div>`).join("");
+          document.getElementById("lyrics").innerHTML = l && l + "<hr/>";
+        }
+      };
+
+      document.getElementById("lyrics").addEventListener("click", function () {
+        this.classList.toggle("vertical")
+        vertical = this.classList.contains("vertical")
+      })
+
+      document.addEventListener("keydown", e => {
+        if (e.code === "Space" && !e.repeat) {
+          audio.paused ? audio.play() : audio.pause()
+          e.preventDefault()
+        }
+      })
+
+      setInterval(() => {
+        localStorage.setItem("lnn-tosu-lyrics-volume", audio.volume)
+      }, 1000)
+    </script>
+  </body>
+</html>

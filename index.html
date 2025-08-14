@@ -5,6 +5,7 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>lyrics</title>
   <script src="/lib/reconnecting-websocket.js"></script>
+  <script src="utils.js"></script>
   <link rel="stylesheet" href="https://fonts.font.im/css2?family=Comfortaa:wght@300;700&display=swap"/>
   <style>
     html {
@@ -106,7 +107,7 @@
   <script>
     const config = {
       mode: "tosu",
-      lyricServer: "127.0.0.1:20577",
+      lyricServer: "127.0.0.1:20577/ws",
       showInSongSelect: false,
     }
 
@@ -224,27 +225,6 @@
     document.addEventListener("click", () => {
       document.body.classList.toggle("black")
     })
-
-    function patchVerticalLyrics(lines) {
-      return lines.map(l => {
-        if (!l.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u)) return l
-        return l
-          .replaceAll("“", "「")
-          .replaceAll("”", "」")
-          .replaceAll("‘", "『")
-          .replaceAll("‘", "』")
-          .replaceAll("…", "⋯")
-          .replace(/(?<![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana} 　！-～])\d{1,2}(?![^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana} 　！-～])/ug, "<hori>$&</hori>")
-      })
-    }
-
-    function rubyify(str) {
-      return str.replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\[([^\n\]]+)\]\{([^\n\}]+(?:\}\{[^\n\}]+)*)\}/g, (_, base, ruby) => ruby.split("}{").reduce((base, ruby) => `<ruby>${base}<rt>${ruby}</rt></ruby>`, base))
-        .replace(/&lt;hori&gt;(.+?)&lt;\/hori&gt;/g, '<span class="hori">$1</span>')
-    }
 
     function frame() {
       requestAnimationFrame(frame)
