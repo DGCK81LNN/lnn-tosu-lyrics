@@ -141,7 +141,7 @@ async def handle_message(request, ws):
             just_switched_song = prev_mp3_sha256 != mp3_sha256
             if full_lyrics is None:
                 if just_switched_song:
-                    logger.info("No lyrics found for mp3", mp3_sha256)
+                    logger.info(f"No lyrics found for mp3 {mp3_sha256}")
                 prev_mp3_sha256 = mp3_sha256
                 continue
             ready_to_show_credits = full_lyrics and time * 1000 >= max(0, full_lyrics[0][0] - 3000)
