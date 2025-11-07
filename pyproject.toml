@@ -1,0 +1,18 @@
+[project]
+name = "lnn-tosu-lyrics"
+version = "0.1.0"
+authors = [
+    {name = "DGCK81LNN",email = "triluolnn@163.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.dependencies]
+sanic = "^25.3.0"
