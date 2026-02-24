@@ -52,6 +52,9 @@
       color: #ffffff;
       animation: 50s cubic-bezier(0.08049081, 1.0636216, 0.116345264, 0.9956869) forwards lyrics-out;
     }
+    .top #lyrics {
+      animation-duration: 120s;
+    }
     .right #lyrics {
       font-size: 36px;
       text-align: start;
@@ -108,7 +111,7 @@
     const config = {
       mode: "tosu",
       lyricServer: "127.0.0.1:20577/ws",
-      showInSongSelect: false,
+      showInSongSelect: true,
     }
 
     const lyrics = document.getElementById("lyrics")
