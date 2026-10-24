@@ -77,6 +77,9 @@
       <audio id="audio" controls style="width: 100%"></audio>
     </div>
     <script>
+      let arg = "";
+      // arg = "?broadcaster=1";
+
       const mp3ListEl = document.getElementById("mp3-list");
       /** @type {HTMLAudioElement} */
       const audio = document.getElementById("audio");
@@ -151,7 +154,7 @@
           .replace(/&lt;hori&gt;(.+?)&lt;\/hori&gt;/g, '<span class="hori">$1</span>')
       }
 
-      const ws = new ReconnectingWebSocket(`ws://${location.host}/ws`);
+      const ws = new ReconnectingWebSocket(`ws://${location.host}/ws${arg}`);
       setInterval(() => {
         const newCurrentTime = audio.currentTime;
         if (currentSha256 && currentTime !== newCurrentTime) {

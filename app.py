@@ -14,6 +14,18 @@ json_encoder = json.JSONEncoder(
     allow_nan=False,
     separators=(",", ":"),
 )
+
+connected_websockets = set()
+
+async def send(data, targets):
+    message = json_encoder.encode(data)
+    for target in list(targets):
+        try:
+            await target.send(message)
+        except Exception:
+            error_logger.warning("Error sending websocket message", exc_info=True)
+            connected_websockets.discard(target)
+
 songs_path = r"D:\Program Files (x86)\osu!\Songs"
 
 sha256_cache = {}
@@ -130,6 +142,8 @@ async def handle_message(request, ws):
     prev_full_lyrics = None
     prev_latest = None
     shown_credits = False
+    is_broadcaster = request.args.get("broadcaster") is not None
+    connected_websockets.add(ws)
     async for message in ws:
         try:
             data = json.loads(message)
@@ -141,7 +155,7 @@ async def handle_message(request, ws):
             just_switched_song = prev_mp3_sha256 != mp3_sha256
             if full_lyrics is None:
                 if just_switched_song:
-                    logger.info(f"No lyrics found for mp3 {mp3_sha256}")
+                    logger.info(f"No lyrics found for mp3 {mp3_sha256} ({data.get('artist')} - {data.get('title')})")
                 prev_mp3_sha256 = mp3_sha256
                 continue
             ready_to_show_credits = full_lyrics and time * 1000 >= max(0, full_lyrics[0][0] - 3000)
@@ -149,7 +163,8 @@ async def handle_message(request, ws):
                 shown_credits = False
             if ready_to_show_credits and not shown_credits:
                 credits = credits_cache.get(mp3_sha256)
-                if credits: await ws.send(json_encoder.encode({"credits": credits}))
+                if credits:
+                    await send({"credits": credits}, connected_websockets if is_broadcaster else [ws])
                 shown_credits = True
             latest = max([float("-inf"), *(t for t, _ in full_lyrics if t < time * 1000)])
             if (
@@ -162,9 +177,10 @@ async def handle_message(request, ws):
             prev_latest = latest
             logger.debug(f"{mp3_sha256} time={time} len={len(full_lyrics)} latest={latest}")
             lyrics = [l for t, l in full_lyrics if t == latest]
-            await ws.send(json_encoder.encode({"lyrics": lyrics}))
+            await send({"lyrics": lyrics}, connected_websockets if is_broadcaster else [ws])
         except Exception:
             error_logger.warning("Error handling incoming message", exc_info=True)
+    connected_websockets.discard(ws)
 
 @app.get("/")
 async def player(request):
